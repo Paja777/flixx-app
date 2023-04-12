@@ -1,6 +1,19 @@
 const global = {
+
     
    currentPage: window.location.pathname,
+
+   search: {
+    term: '',
+    type: '',
+    page: 1,
+    totalPages: 1,
+    totalResults: 0
+   },
+   api: {
+    apiKey: '4bc53d6f7962a1318e0ccbfbecf021f5',
+    apiUrl: 'https://api.themoviedb.org/3'
+   }
 };
 
 async function displayPopularMovies(){
@@ -249,12 +262,144 @@ async function displayBacgroundImage(type, backgrounPath) {
    }
 }
 
+//Search function
+
+async function search(){
+
+  const queryString = window.location.search;
+
+  console.log(queryString);
+
+  const urlParams = new URLSearchParams(queryString);
+
+  global.search.type = urlParams.get('type');
+
+  global.search.term = urlParams.get('search-term');
+
+  if(global.search.term !== '' && global.search.term !== null){
+
+    //make request and display search
+
+    const {results, total_pages , page, total_results} = await searchAPIData();
+    console.log(results);
+    global.search.page = page;
+    global.search.totalResults = total_results; 
+    global.search.totalPages = total_pages;
+
+    if(results.length === 0){
+
+    showAlert('No results found');
+    return;
+    }
+
+    displaySearchResults(results);
+    document.querySelector('#search-term').value = '';
+
+    
+  }
+  else{
+    
+    showAlert('Please enter text');
+  
+  }
+
+}
+
+// display Search results
+
+function displaySearchResults(results){
+
+  document.querySelector('#search-results').innerHTML = '';
+  document.querySelector('#search-results-heading').innerHTML = '';
+  document.querySelector('#pagination').innerHTML = '';
+
+
+  results.forEach((result)=>{
+    const div = document.createElement('div');
+    div.classList.add('card');
+    div.innerHTML = `
+      <a href="${global.search.type}-details.html?id=${result.id}">
+        ${
+             result.poster_path 
+             ?
+             `<img
+            src= "https://image.tmdb.org/t/p/w500${result.poster_path}"
+            class="card-img-top"
+            alt=" ${global.search.type === 'movie' ? result.title : result.name} "
+          /> `
+          :
+          `<img
+          src= "../images/no-image.jpg"
+          class="card-img-top"
+          alt=" ${global.search.type === 'movie' ? result.title : result.name} "
+        /> 
+        `
+        }
+
+      </a>
+      <div class="card-body">
+        <h5 class="card-title">${global.search.type === 'movie' ? result.title : result.name}</h5>
+        <p class="card-text">
+          <small class="text-muted">Release: ${global.search.type === 'movie' ? result.release_date : result.first_air_date}</small>
+        </p>
+      </div>
+    `;
+    document.querySelector('#search-results-heading').innerHTML = `
+    <h2>${results.length} of ${global.search.totalResults}
+    Results for : ${global.search.term}</h2>
+    `
+    document.querySelector('#search-results').appendChild(div);
+});
+
+displayPagination();
+
+}
+
+// PAGINATION
+
+function displayPagination(){
+  const div = document.createElement('div');
+  div.classList.add('pagination');
+
+  div.innerHTML = `
+  <button class="btn btn-primary" id="prev">Prev</button>
+  <button class="btn btn-primary" id="next">Next</button>
+  <div class="page-counter">Page ${global.search.page} of ${global.search.totalPages}</div>
+  `;
+
+  document.querySelector('#pagination').appendChild(div);
+
+  if(global.search.page === 1){
+
+    document.querySelector('#prev').disabled = true;
+  }
+  if(global.search.page === global.search.totalPages){
+
+    document.querySelector('#next').disabled = true;
+
+    
+  }
+  document.querySelector('#next').addEventListener('click', async ()=> {
+
+
+    global.search.page++;
+
+    const {results, total_pages} = await searchAPIData();
+    displaySearchResults(results);
+
+
+
+  } );
+}
+
+
+
 async function displaySlider()
 
 {
 
     const {results} = await fetchData('movie/now_playing');
-    console.log(results);
+    // console.log(results);
 
     results.forEach((result)=>{
 
@@ -311,14 +456,29 @@ function initSwiper(){
 
 async function fetchData(endpoint){
 
-    const API_KEY = '4bc53d6f7962a1318e0ccbfbecf021f5';
-    const API_URL = 'https://api.themoviedb.org/3';
+    const API_KEY = global.api.apiKey;
+    const API_URL = global.api.apiUrl;
     showSpiner();
 
     const response = await fetch(`${API_URL}/${endpoint}?api_key=${API_KEY}&language=en_US`);
     const data = await response.json();
     hideSpiner();
     return data;
+
+}
+
+//fetch API data
+
+async function searchAPIData(){
+
+  const API_KEY = global.api.apiKey;
+  const API_URL = global.api.apiUrl;
+  showSpiner();
+
+  const response = await fetch(`${API_URL}/search/${global.search.type}?api_key=${API_KEY}&language=en_US&query=${global.search.term}&page=${global.search.page}`);
+  const data = await response.json();
+  hideSpiner();
+  return data;
 
 }
 
@@ -341,6 +501,18 @@ function highlightActiveLink(){
     });
   
 }
+
+//Alert create
+function showAlert(message, className = 'alert-error'){
+const alertEl = document.createElement('div');
+alertEl.classList.add('alert', className);
+alertEl.appendChild(document.createTextNode(message));
+document.querySelector('#alert').appendChild(alertEl);
+
+setTimeout(()=> alertEl.remove() ,3000)
+
+}
+
 function addCommasToNumber(x){
     var parts = x.toString().split(".");
     parts[0]=parts[0].replace(/\B(?=(\d{3})+(?!\d))/g,".");
@@ -371,11 +543,12 @@ function init(){
 
         case '/tv-details.html' :
         console.log('Tv-show');
-        displayShowDetails();
+        displayShowDetails(); 
         break;
 
         case '/search.html' :
         console.log('Search');
+        search();
         break;
         
 
